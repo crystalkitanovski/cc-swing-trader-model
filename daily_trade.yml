@@ -1,0 +1,30 @@
+name: Daily Trade
+
+on:
+  schedule:
+    # 4:30pm ET Mon-Fri (21:30 UTC, or 20:30 during DST)
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch:  # manual trigger
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install deps
+      run: pip install -r requirements.txt
+    
+    - name: Run trader
+      env:
+        ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+        ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      run: python main.py run
