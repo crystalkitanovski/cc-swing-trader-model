@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Homework Tracker</title>
 <meta name="description" content="Track your homework and get reminders before it's due." />
-<meta name="theme-color" content="#4f46e5" />
+<meta name="theme-color" content="#7c3aed" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -15,9 +15,25 @@
 <div class="app">
 
   <header class="topbar">
-    <h1>📚 My Homework</h1>
-    <button id="notifyBtn" class="btn btn-ghost" title="Turn on due-date reminders">🔔 Reminders: off</button>
+    <div class="brand">
+      <span class="logo">📚</span>
+      <div>
+        <h1>Homework HQ</h1>
+        <p class="tagline">Stay ahead, stress less</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="streakBadge" class="streak-badge hidden"></span>
+      <button id="notifyBtn" class="btn btn-ghost" title="Turn on due-date reminders">🔔 Off</button>
+    </div>
   </header>
+
+  <section class="progress-card hidden" id="progressCard">
+    <div class="progress-label">
+      <span id="progressText">0% complete</span>
+    </div>
+    <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+  </section>
 
   <section class="summary" id="summary"></section>
 
@@ -64,6 +80,7 @@
   <main id="lists"></main>
 
   <section class="empty-state hidden" id="emptyState">
+    <span class="big-emoji">🎈</span>
     <p>No homework yet. Tap <strong>+ Add Assignment</strong> to get started.</p>
   </section>
 

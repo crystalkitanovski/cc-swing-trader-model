@@ -2,11 +2,47 @@
 
 const STORAGE_KEY = "homeworkTracker.assignments.v2";
 const SUBJECTS_KEY = "homeworkTracker.subjects.v1";
+const STREAK_KEY = "homeworkTracker.streak.v1";
 const DEFAULT_SUBJECTS = ["Math", "Science", "English", "History", "Language", "Elective"];
 const CHECK_INTERVAL_MS = 15 * 60 * 1000; // re-check reminders every 15 min while app is open
 
+const SUBJECT_EMOJI = {
+  math: "🧮",
+  science: "🔬",
+  english: "📖",
+  "language arts": "📖",
+  history: "🏛️",
+  "social studies": "🏛️",
+  language: "🗣️",
+  spanish: "🗣️",
+  french: "🗣️",
+  elective: "🎨",
+  art: "🎨",
+  music: "🎵",
+  band: "🎵",
+  "p.e.": "⚽",
+  pe: "⚽",
+  gym: "⚽",
+  health: "🩺",
+  tech: "💻",
+  "computer science": "💻",
+  reading: "📚",
+};
+const FALLBACK_EMOJI = ["📌", "✏️", "📝", "🗂️", "📎"];
+
+const CELEBRATIONS = [
+  "Nice job! 🎉",
+  "Crushing it! 💪",
+  "One less thing to worry about ✅",
+  "You're on fire! 🔥",
+  "Boom, done! 🎯",
+  "Keep it up! ✨",
+];
+const CONFETTI_CHARS = ["🎉", "✨", "⭐", "🎊", "💥"];
+
 let assignments = load(STORAGE_KEY, []);
 let subjects = load(SUBJECTS_KEY, DEFAULT_SUBJECTS);
+let streak = load(STREAK_KEY, { count: 0, lastDate: null });
 let currentFilter = "all";
 
 // ---------- storage helpers ----------
@@ -24,6 +60,15 @@ function load(key, fallback) {
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(assignments));
   localStorage.setItem(SUBJECTS_KEY, JSON.stringify(subjects));
+  localStorage.setItem(STREAK_KEY, JSON.stringify(streak));
+}
+
+function subjectEmoji(subject) {
+  const key = (subject || "").trim().toLowerCase();
+  if (SUBJECT_EMOJI[key]) return SUBJECT_EMOJI[key];
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return FALLBACK_EMOJI[Math.abs(hash) % FALLBACK_EMOJI.length];
 }
 
 function uid() {
@@ -111,13 +156,46 @@ function deleteAssignment(id) {
   render();
 }
 
-function toggleComplete(id) {
+function toggleComplete(id, checkEl) {
   const a = assignments.find((x) => x.id === id);
   if (!a) return;
   a.completed = !a.completed;
   a.completedAt = a.completed ? Date.now() : null;
+  if (a.completed) {
+    bumpStreak();
+    if (checkEl) burstConfetti(checkEl);
+    showToast(CELEBRATIONS[Math.floor(Math.random() * CELEBRATIONS.length)]);
+  }
   save();
   render();
+}
+
+function bumpStreak() {
+  const today = todayStr();
+  if (streak.lastDate === today) return;
+  const yesterday = addDays(today, -1);
+  streak.count = streak.lastDate === yesterday ? streak.count + 1 : 1;
+  streak.lastDate = today;
+}
+
+function burstConfetti(originEl) {
+  const rect = originEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  for (let i = 0; i < 10; i++) {
+    const span = document.createElement("span");
+    span.className = "confetti-piece";
+    span.textContent = CONFETTI_CHARS[Math.floor(Math.random() * CONFETTI_CHARS.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 40 + Math.random() * 50;
+    span.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
+    span.style.setProperty("--dy", `${Math.sin(angle) * distance - 20}px`);
+    span.style.setProperty("--rot", `${(Math.random() - 0.5) * 240}deg`);
+    span.style.left = `${cx}px`;
+    span.style.top = `${cy}px`;
+    document.body.appendChild(span);
+    span.addEventListener("animationend", () => span.remove());
+  }
 }
 
 function rememberSubject(subject) {
@@ -132,9 +210,34 @@ const $ = (sel) => document.querySelector(sel);
 
 function render() {
   renderSubjectList();
+  renderStreak();
+  renderProgress();
   renderSummary();
   renderFilters();
   renderLists();
+}
+
+function renderStreak() {
+  const badge = $("#streakBadge");
+  if (streak.count > 0) {
+    badge.textContent = `🔥 ${streak.count} day${streak.count === 1 ? "" : "s"}`;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+function renderProgress() {
+  const card = $("#progressCard");
+  if (assignments.length === 0) {
+    card.classList.add("hidden");
+    return;
+  }
+  card.classList.remove("hidden");
+  const done = assignments.filter((a) => a.completed).length;
+  const pct = Math.round((done / assignments.length) * 100);
+  $("#progressFill").style.width = `${pct}%`;
+  $("#progressText").textContent = `${pct}% complete (${done}/${assignments.length})`;
 }
 
 function renderSubjectList() {
@@ -216,7 +319,7 @@ function renderLists() {
   document.querySelectorAll(".card .check").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      toggleComplete(el.closest(".card").dataset.id);
+      toggleComplete(el.closest(".card").dataset.id, el);
     });
   });
   document.querySelectorAll(".card .body").forEach((el) => {
@@ -228,7 +331,8 @@ function cardHtml(a, color) {
   const completedClass = a.completed ? "completed" : "";
   return `
     <div class="card ${color} ${completedClass}" data-id="${a.id}">
-      <button class="check" aria-label="Mark complete"></button>
+      <span class="emoji">${subjectEmoji(a.subject)}</span>
+      <button class="check" aria-label="Mark complete">${a.completed ? "✓" : ""}</button>
       <div class="body">
         <div class="subject">${escapeHtml(a.subject)}</div>
         <div class="title">${escapeHtml(a.title)}</div>
@@ -367,16 +471,16 @@ $("#importInput").addEventListener("change", async (e) => {
 function updateNotifyBtn() {
   const btn = $("#notifyBtn");
   if (!("Notification" in window)) {
-    btn.textContent = "🔔 Not supported";
+    btn.textContent = "🔔 N/A";
     btn.disabled = true;
     return;
   }
   if (Notification.permission === "granted") {
-    btn.textContent = "🔔 Reminders: on";
+    btn.textContent = "🔔 On";
   } else if (Notification.permission === "denied") {
-    btn.textContent = "🔕 Reminders blocked";
+    btn.textContent = "🔕 Blocked";
   } else {
-    btn.textContent = "🔔 Reminders: off";
+    btn.textContent = "🔔 Off";
   }
 }
 
